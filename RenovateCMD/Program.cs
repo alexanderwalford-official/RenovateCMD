@@ -21,8 +21,9 @@ namespace RenovateCMD
 
             string username = "";
             string password = null;
-
             Console.Title = "RenovateCMD";
+            checknetwork();
+ 
             Console.WriteLine("=================");
             Console.WriteLine("   RenovateCMD   ");
             Console.WriteLine("   Version 0.1   ");
@@ -498,6 +499,29 @@ namespace RenovateCMD
                     // Do nothing
                 }
 
+            }
+
+            async void checknetwork()
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://renovatesoftware.com/webapp/home/");
+                request.Timeout = 15000;
+                request.Method = "HEAD";
+                try
+                {
+                    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                    {
+                        // Server is reachable
+                    }
+                }
+                catch (WebException)
+                {
+                    // Error, cannot connect
+                    Console.Clear();
+                    Console.WriteLine("ERROR: Could not connect to the server. Please try again later.");
+                    Console.ReadLine();
+                }
+                await Task.Delay(8000);
+                checknetwork();
             }
         }
     }

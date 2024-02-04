@@ -1,4 +1,10 @@
-﻿using System;
+﻿/*
+ *  Requires some major refactoring, seriously.
+ *  This is an absolute mess with threads hanging.
+ *  Also needs arrays to be implemented and admin access.
+ */
+
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -15,18 +21,19 @@ namespace RenovateCMD
     class Program
     {
         private static readonly HttpClient client = new HttpClient();
+        
 
         static async System.Threading.Tasks.Task Main(string[] args)
         {
-
+            string CurrentProductInstallID = "";
             string username = "";
-            string password = null;
+            string password = "";
             Console.Title = "RenovateCMD";
             checknetwork();
  
             Console.WriteLine("=================");
             Console.WriteLine("   RenovateCMD   ");
-            Console.WriteLine("   Version 0.1   ");
+            Console.WriteLine("   Version 0.2   ");
             Console.WriteLine("=================");
             Console.WriteLine("");
             Console.WriteLine("");
@@ -66,24 +73,34 @@ namespace RenovateCMD
             Console.WriteLine("Getting 2FA key.. ");
 
             var values = new Dictionary<string, string>
-            {
+                {
+                    { "apikey", "550039706949" },
                     { "username", username },
                     { "password", password }
-            };
+                };
 
             var content = new FormUrlEncodedContent(values);
-            var response = await client.PostAsync("https://renovatesoftware.com/API/2fa_authenticate/", content);
+            var response = await client.PostAsync("https://renovatesoftware.com/API/getkey/", content);
             var responseString = await response.Content.ReadAsStringAsync();
             string key = responseString;
+
             Console.WriteLine("");
 
-            if (responseString.Contains("Login details do not match"))
+            if (responseString.Contains("Wrong details provided"))
             {
                 // Incorrect details
                 Console.Clear();
                 Console.WriteLine("Login details do not match. Please try again.");
                 Console.ReadLine();
-                Environment.Exit(0);
+                await Main(args);
+            }
+            else if (responseString.Contains("username"))
+            {
+                // Incorrect details
+                Console.Clear();
+                Console.WriteLine("Login details do not match. Please try again.");
+                Console.ReadLine();
+                await Main(args);
             }
 
             // Here we could check the output of the server's response, for example:
@@ -93,7 +110,8 @@ namespace RenovateCMD
 
             var values2 = new Dictionary<string, string>
             {
-                { "key", key },
+                { "apikey" , "550039706949" },
+                { "key", key }
             };
 
             if (key == null)
@@ -105,14 +123,14 @@ namespace RenovateCMD
             }
 
             var content2 = new FormUrlEncodedContent(values2);
-            var response2 = await client.PostAsync("https://renovatesoftware.com/API/getuserdata/ ", content2);
-            var responseString2 = response2.Content.ReadAsStringAsync().Result.ToString().Split(" | ");
+            var response2 = await client.PostAsync("https://renovatesoftware.com/API/getuserdata/", content2);
+            string[] responseString2 = response2.Content.ReadAsStringAsync().Result.ToString().Split("|");
             string first_name = responseString2[0];
             string last_name = responseString2[1];
 
             var content3 = new FormUrlEncodedContent(values2);
-            var response3 = await client.PostAsync("https://renovatesoftware.com/API/getproductsdata/", content3);
-            var responseString3 = response3.Content.ReadAsStringAsync().Result.ToString().Split(" | ");
+            var response3 = await client.PostAsync("https://renovatesoftware.com/API/getproductsdata/", content3); // has recently been removed
+            var responseString3 = response3.Content.ReadAsStringAsync().Result.ToString();
 
             Console.WriteLine("");
             Console.Clear();
@@ -130,8 +148,9 @@ namespace RenovateCMD
                 Console.WriteLine("2) List account details.");
                 Console.WriteLine("3) Download A Product");
                 Console.WriteLine("4) Launch A Product");
-                Console.WriteLine("5) Uninstall A Product");
-                Console.WriteLine("6) Log Out");
+                Console.WriteLine("5) Purchase A Product");
+                Console.WriteLine("6) Uninstall A Product");
+                Console.WriteLine("7) Log Out");
                 Console.WriteLine("");
                 Console.Write("Selection: ");
 
@@ -141,7 +160,7 @@ namespace RenovateCMD
                 {
                     // Get user products
                     Console.Clear();
-                    Console.WriteLine("");
+                    Console.WriteLine("-= Products Attached To Your Account =-");
                     var products = String.Concat(responseString3).Replace("|", "\n");
                     Console.WriteLine(products);
                     Console.WriteLine("");
@@ -184,8 +203,8 @@ namespace RenovateCMD
                     {
                         System.Net.WebClient wc = new System.Net.WebClient();
                         string webData = wc.DownloadString("https://renovatesoftware.com/webapp/verify/" + key);
-
-                        if (webData == "In My Dreams")
+                        Console.Clear();
+                        if (webData == "inmydreams")
                         {
                             // Correct
                             Console.WriteLine("Key is correct.");
@@ -196,30 +215,13 @@ namespace RenovateCMD
 
                             Console.WriteLine("Downloading the required game files from the server..");
                             // Download the Web resource and save it into the current filesystem folder.
-
-                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com:140/desktop-games/In%20My%20Dreams.zip"), @"C:\ProgramData\RenovateSoftware\imd-installer.zip");
-                            myWebClient.DownloadProgressChanged += new DownloadProgressChangedEventHandler(client_DownloadProgressChanged);
-                            myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted3);
-                            Console.ReadLine();
-                        }
-                        else if (webData == "Still Light Version 4")
-                        {
-                            // Correct
-                            Console.WriteLine("Key is correct.");
-                            Console.WriteLine(webData);
-
-                            // Create a new WebClient instance.
-                            WebClient myWebClient = new WebClient();
-
-                            Console.WriteLine("Downloading the required game files from the server..");
-                            // Download the Web resource and save it into the current filesystem folder.
-
-                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com:140/desktop-games/Still%20Light%20v4.zip"), @"C:\ProgramData\RenovateSoftware\sl-installer.zip");
+                            CurrentProductInstallID = "inmydreams";
+                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com/media/desktop-games/In%20My%20Dreams.zip"), @"C:\ProgramData\RenovateSoftware\imd-installer.zip");
                             myWebClient.DownloadProgressChanged += new DownloadProgressChangedEventHandler(client_DownloadProgressChanged);
                             myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted);
                             Console.ReadLine();
                         }
-                        else if (webData == "The Land Inbetween")
+                        else if (webData == "stilllight")
                         {
                             // Correct
                             Console.WriteLine("Key is correct.");
@@ -230,10 +232,71 @@ namespace RenovateCMD
 
                             Console.WriteLine("Downloading the required game files from the server..");
                             // Download the Web resource and save it into the current filesystem folder.
-
-                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com:140/desktop-games/The%20Land%20Inbetween.zip"), @"C:\ProgramData\RenovateSoftware\tli-installer.zip");
+                            CurrentProductInstallID = "stilllight";
+                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com/media/desktop-games/Still%20Light.zip"), @"C:\ProgramData\RenovateSoftware\sl-installer.zip");
                             myWebClient.DownloadProgressChanged += new DownloadProgressChangedEventHandler(client_DownloadProgressChanged);
-                            myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted2);
+                            myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted);
+                            Console.ReadLine();
+                        }
+                        else if (webData == "survivalcraft")
+                        {
+                            Console.WriteLine("Key is correct.");
+                            Console.WriteLine(webData);
+                            // Create a new WebClient instance.
+                            WebClient myWebClient = new WebClient();
+
+                            Console.WriteLine("Downloading the required game files from the server..");
+                            // Download the Web resource and save it into the current filesystem folder.
+                            CurrentProductInstallID = "survivalcraft";
+                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com/media/desktop-games/SurvivalCraft.zip"), @"C:\ProgramData\RenovateSoftware\svc-installer.zip");
+                            myWebClient.DownloadProgressChanged += new DownloadProgressChangedEventHandler(client_DownloadProgressChanged);
+                            myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted);
+                            Console.ReadLine();
+                        }
+                        else if (webData == "shriekingdarkness")
+                        {
+                            Console.WriteLine("Key is correct.");
+                            Console.WriteLine(webData);
+
+                            // Create a new WebClient instance.
+                            WebClient myWebClient = new WebClient();
+
+                            Console.WriteLine("Downloading the required game files from the server..");
+                            // Download the Web resource and save it into the current filesystem folder.
+                            CurrentProductInstallID = "shriekingdarkness";
+                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com/media/desktop-games/ShriekingDarkness.zip"), @"C:\ProgramData\RenovateSoftware\sd-installer.zip");
+                            myWebClient.DownloadProgressChanged += new DownloadProgressChangedEventHandler(client_DownloadProgressChanged);
+                            myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted);
+                            Console.ReadLine();
+
+                        }
+                        else if (webData == "hardwareapp")
+                        {
+                            Console.WriteLine("Application not supported on this device!");
+                            Console.WriteLine(webData);
+                            Console.ReadLine();
+                        }
+                        else if (webData == "renIDE")
+                        {
+                            Console.WriteLine("Application not supported on this device!");
+                            Console.WriteLine(webData);
+                            Console.ReadLine();
+                        }
+                        else if (webData == "tli")
+                        {
+                            // Correct
+                            Console.WriteLine("Key is correct.");
+                            Console.WriteLine(webData);
+
+                            // Create a new WebClient instance.
+                            WebClient myWebClient = new WebClient();
+
+                            Console.WriteLine("Downloading the required game files from the server..");
+                            // Download the Web resource and save it into the current filesystem folder.
+                            CurrentProductInstallID = "tli";
+                            myWebClient.DownloadFileAsync(new Uri("https://renovatesoftware.com/media/desktop-games/The%20Land%20Inbetween.zip"), @"C:\ProgramData\RenovateSoftware\tli-installer.zip");
+                            myWebClient.DownloadProgressChanged += new DownloadProgressChangedEventHandler(client_DownloadProgressChanged);
+                            myWebClient.DownloadFileCompleted += new AsyncCompletedEventHandler(client_DownloadFileCompleted);
                             Console.ReadLine();
                         }
                         else if (webData == "false")
@@ -267,38 +330,48 @@ namespace RenovateCMD
                     // Launch a product
                     if (File.Exists(@"C:\ProgramData\RenovateSoftware\Still Light v4\Still Light.exe"))
                     {
-                        Console.WriteLine("SL) Still Light V4");
+                        Console.WriteLine("stilllight");
                     }
                     if (File.Exists(@"C:\ProgramData\RenovateSoftware\In My Dreams\In My Dreams.exe"))
                     {
-                        Console.WriteLine("IMD) In My Dreams");
+                        Console.WriteLine("inmydreams");
                     }
                     if (File.Exists(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\The Land Inbetween.exe"))
                     {
-                        Console.WriteLine("TLI) The Land Inbetween");
+                        Console.WriteLine("tli");
+                    }
+                    if (File.Exists(@"C:\ProgramData\RenovateSoftware\Survival Craft\SC Console.bat"))
+                    {
+                        Console.WriteLine("survivalcraft");
                     }
                     Console.WriteLine("");
                     Console.Write("Selection: ");
                     string choice = Console.ReadLine();          
 
-                    if (choice == "SL")
+                    if (choice == "stilllight")
                     {
                         // Launch still light
                         System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\Still Light v4\Still Light.exe");
                         menu();
                     }
 
-                    else if (choice == "IMD")
+                    else if (choice == "inmydreams")
                     {
                         // Launch In My Dreams
                         System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\In My Dreams\In My Dreams.exe");
                         menu();
                     }
 
-                    else if (choice == "TLI")
+                    else if (choice == "tli")
                     {
                         // Launch The Land Inbetween
                         System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\The Land Inbetween.exe");
+                        menu();
+                    }
+                    else if (choice == "survivalcraft")
+                    {
+                        // Launch Survival Craft
+                        System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\Survival Craft\SC Console.bat");
                         menu();
                     }
                     else
@@ -312,26 +385,40 @@ namespace RenovateCMD
 
                 if (repsonse == "5")
                 {
+                    try
+                    {
+                        System.Diagnostics.Process.Start("cmd", "/c start https://renovatesoftware.com/webapp/store/");   
+                    }
+                    catch { }
+                    menu();
+                }
+
+                if (repsonse == "6")
+                {
                     Console.Clear();
                     Console.WriteLine("Please select the product that you wish to uninstall.");
                     if (File.Exists(@"C:\ProgramData\RenovateSoftware\Still Light v4\Still Light.exe"))
                     {
-                        Console.WriteLine("SL) Still Light V4");
+                        Console.WriteLine("stilllight");
                     }
                     if (File.Exists(@"C:\ProgramData\RenovateSoftware\In My Dreams\In My Dreams.exe"))
                     {
-                        Console.WriteLine("IMD) In My Dreams");
+                        Console.WriteLine("inmydreams");
                     }
                     if (File.Exists(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\The Land Inbetween.exe"))
                     {
-                        Console.WriteLine("TLI) The Land Inbetween");
+                        Console.WriteLine("tli");
+                    }
+                    if (File.Exists(@"C:\ProgramData\RenovateSoftware\survivalcraft"))
+                    {
+                        Console.WriteLine("survivalcraft");
                     }
 
                     Console.WriteLine("");
                     Console.Write("Choice: ");
                     string choice = Console.ReadLine();
 
-                    if (choice == "SL")
+                    if (choice == "stilllight")
                     {
                         // Remove still light      
 
@@ -351,7 +438,7 @@ namespace RenovateCMD
                         menu();
                     }
 
-                    else if (choice == "IMD")
+                    else if (choice == "inmydreams")
                     {
                         // Remove In My Dreams
                         System.IO.DirectoryInfo di = new DirectoryInfo(@"C:\ProgramData\RenovateSoftware\In My Dreams\");
@@ -368,7 +455,7 @@ namespace RenovateCMD
                         menu();
                     }
 
-                    else if (choice == "TLI")
+                    else if (choice == "tli")
                     {
                         // Remove The Land Inbetween
                         System.IO.DirectoryInfo di = new DirectoryInfo(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\");
@@ -384,6 +471,22 @@ namespace RenovateCMD
                         Directory.Delete(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\");
                         menu();
                     }
+                    else if (choice == "survivalcraft")
+                    {
+                        // Remove SC
+                        System.IO.DirectoryInfo di = new DirectoryInfo(@"C:\ProgramData\RenovateSoftware\Survival Craft\");
+
+                        foreach (FileInfo file in di.GetFiles())
+                        {
+                            file.Delete();
+                        }
+                        foreach (DirectoryInfo dir in di.GetDirectories())
+                        {
+                            dir.Delete(true);
+                        }
+                        Directory.Delete(@"C:\ProgramData\RenovateSoftware\Survival Craft\");
+                        menu();
+                    }
                     else
                     {
                         Console.WriteLine("Invalid selection. Please try again.");
@@ -393,7 +496,7 @@ namespace RenovateCMD
 
                 }
 
-                if (repsonse == "6")
+                if (repsonse == "7")
                 {
                     // Log out
                     Console.Clear();
@@ -405,93 +508,60 @@ namespace RenovateCMD
 
             void client_DownloadProgressChanged(object sender, System.Net.DownloadProgressChangedEventArgs e)
             {
-                Console.WriteLine(e.ProgressPercentage + "% downloaded.");
+                Console.WriteLine(CurrentProductInstallID + " is " + e.ProgressPercentage + "% downloaded.");
             }
 
             void client_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
             {
-                Console.WriteLine("\nFile downloaded. Attempting extraction..");
+                Console.WriteLine("\nFile downloaded. Attempting extraction.. " + CurrentProductInstallID);
                 try
                 {
-                    Directory.CreateDirectory(@"C:\ProgramData\RenovateSoftware\Still Light v4\");
+                    if (CurrentProductInstallID == "stilllight")
+                    {
+                        Directory.CreateDirectory(@"C:\ProgramData\RenovateSoftware\Still Light v4\");
 
-                    string zipPath = @"C:\ProgramData\RenovateSoftware\sl-installer.zip";
-                    string extractPath = @"C:\ProgramData\RenovateSoftware\";
+                        string zipPath = @"C:\ProgramData\RenovateSoftware\sl-installer.zip";
+                        string extractPath = @"C:\ProgramData\RenovateSoftware\";
 
-                    // Extract the file
-                    ZipFile.ExtractToDirectory(zipPath, extractPath);
+                        // Extract the file
+                        ZipFile.ExtractToDirectory(zipPath, extractPath);
 
-                    Console.WriteLine("Extraction complete. Cleaning up..");
-                    File.Delete(zipPath);
+                        Console.WriteLine("Extraction complete. Cleaning up..");
+                        File.Delete(zipPath);
 
-                    Console.WriteLine("Clean up finished. Installation complete.");
+                        Console.WriteLine("Clean up finished. Installation complete.");
 
-                    Console.ReadLine();
+                        Console.ReadLine();
 
-                    // Game is installed, try to launch it
-                    System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\Still Light v4\Still Light.exe");
-                    menu();
-                }
-                catch
-                {
-                    // Do nothing
-                }
+                        // Game is installed, try to launch it
+                        System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\Still Light v4\Still Light.exe");
+                    }
+                    else if (CurrentProductInstallID == "survivalcraft")
+                    {
+                        Directory.CreateDirectory(@"C:\ProgramData\RenovateSoftware\Survival Craft\");
 
-            }
+                        string zipPath = @"C:\ProgramData\RenovateSoftware\svc-installer.zip";
+                        string extractPath = @"C:\ProgramData\RenovateSoftware\";
 
-            void client_DownloadFileCompleted2(object sender, AsyncCompletedEventArgs e)
-            {
-                Console.WriteLine("\nFile downloaded. Attempting extraction..");
-                try
-                {
-                    Directory.CreateDirectory(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\");
+                        // Extract the file
+                        ZipFile.ExtractToDirectory(zipPath, extractPath);
 
-                    string zipPath = @"C:\ProgramData\RenovateSoftware\tli-installer.zip";
-                    string extractPath = @"C:\ProgramData\RenovateSoftware\";
+                        Console.WriteLine("Extraction complete. Cleaning up..");
+                        File.Delete(zipPath);
 
-                    // Extract the file
-                    ZipFile.ExtractToDirectory(zipPath, extractPath);
+                        Console.WriteLine("Clean up finished. Installation complete.");
 
-                    Console.WriteLine("Extraction complete. Cleaning up..");
-                    File.Delete(zipPath);
+                        Console.ReadLine();
 
-                    Console.WriteLine("Clean up finished. Installation complete.");
+                        // Game is installed, try to launch it
+                        System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\Survival Craft\SC Console.bat");
+                    }
+                    else
+                    {
+                        Console.WriteLine("[ X ] An error occoured when trying to extract the files.");
+                    }
 
-                    Console.ReadLine();
-
-                    // Game is installed, try to launch it
-                    System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\The Land Inbetween\The Land Inbetween.exe");
-                    menu();
-                }
-                catch
-                {
-                    // Do nothing
-                }
-
-            }
-
-            void client_DownloadFileCompleted3(object sender, AsyncCompletedEventArgs e)
-            {
-                Console.WriteLine("\nFile downloaded. Attempting extraction..");
-                try
-                {
-                    Directory.CreateDirectory(@"C:\ProgramData\RenovateSoftware\In My Dreams\");
-
-                    string zipPath = @"C:\ProgramData\RenovateSoftware\imd-installer.zip";
-                    string extractPath = @"C:\ProgramData\RenovateSoftware\";
-
-                    // Extract the file
-                    ZipFile.ExtractToDirectory(zipPath, extractPath);
-
-                    Console.WriteLine("Extraction complete. Cleaning up..");
-                    File.Delete(zipPath);
-
-                    Console.WriteLine("Clean up finished. Installation complete.");
-
-                    Console.ReadLine();
-
-                    // Game is installed, try to launch it
-                    System.Diagnostics.Process.Start(@"C:\ProgramData\RenovateSoftware\In My Dreams\In My Dreams.exe");
+                    CurrentProductInstallID = "";
                     menu();
                 }
                 catch
